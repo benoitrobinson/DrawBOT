@@ -12,6 +12,8 @@
 #define IN_1_G 17 // Left motor control 1
 #define IN_2_G 16 // Left motor control 2
 
+// Motor speed constants
+
 void setup()
 {
   // Initialize serial communication
