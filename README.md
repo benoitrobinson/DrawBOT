@@ -1,23 +1,11 @@
 # Drawbot
 
-<div align="center">
-  <strong>Un robot autonome de dessin de précision</strong>
-  <br>
-  <br>
-</div>
-
-![Version](https://img.shields.io/badge/version-1.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Arduino Compatible](https://img.shields.io/badge/platform-ESP32-red.svg)
-
 ## 📋 Sommaire
 
 - [Aperçu](#aperçu)
 - [Fonctionnalités](#fonctionnalités)
 - [Installation](#installation)
-- [Utilisation](#utilisation)
 - [Architecture](#architecture)
-- [Documentation](#documentation)
-- [Contribution](#contribution)
-- [Licence](#licence)
 
 ## 🔍 Aperçu
 
@@ -76,22 +64,6 @@ Drawbot est une plateforme robotique mobile conçue pour réaliser des dessins d
    arduino-cli compile --fqbn esp32:esp32:nodemcu-32s firmware/drawbot
    arduino-cli upload -p /dev/ttyUSB0 --fqbn esp32:esp32:nodemcu-32s firmware/drawbot
    ```
-
-## 🚀 Utilisation
-
-### Connexion au robot
-
-1. Mettez le robot sous tension
-2. Connectez-vous au réseau Wi-Fi `Drawbot-XXXX` (XXXX étant l'ID unique du robot)
-3. Ouvrez votre navigateur et accédez à `http://192.168.4.1`
-
-### Commande du robot
-
-L'interface web vous permet de:
-- Sélectionner la séquence de dessin
-- Ajuster les paramètres (rayon, longueur, etc.)
-- Lancer et arrêter l'exécution
-- Visualiser l'état des capteurs
 
 ## 🏗️ Architecture
 
