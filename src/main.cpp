@@ -1,16 +1,61 @@
 #include <Arduino.h>
 
 // User LEDs
-#define LEDU1 25
-#define LEDU2 26
+#define LEDU1 25 // This LED will indicate when the left motor is running
+#define LEDU2 26 // This LED will indicate when the right motor is running
 
-// Motor pins (from your project documentation)
-#define EN_D 23   // Enable right motor
+// Motor pins
 #define EN_G 4    // Enable left motor
-#define IN_1_D 19 // Right motor control 1
-#define IN_2_D 18 // Right motor control 2
+#define EN_D 23   // Enable right motor
 #define IN_1_G 17 // Left motor control 1
 #define IN_2_G 16 // Left motor control 2
+#define IN_1_D 19 // Right motor control 1
+#define IN_2_D 18 // Right motor control 2
+
+// PWM configurations
+#define PWM_FREQ 5000    // PWM frequency in Hz
+#define PWM_RESOLUTION 8 // 8-bit resolution (0-255)
+#define LEFT_MOTOR_CH 0  // PWM channel for left motor
+#define RIGHT_MOTOR_CH 1 // PWM channel for right motor
+
+// Encoder pins
+#define ENC_G_CH_A 32 // Left encoder channel A
+#define ENC_G_CH_B 33 // Left encoder channel B
+#define ENC_D_CH_A 27 // Right encoder channel A
+#define ENC_D_CH_B 14 // Right encoder channel B
+
+// Variables for encoder readings
+volatile long leftEncoderCount = 0;
+volatile long rightEncoderCount = 0;
+long lastLeftEncoderCount = 0;
+long lastRightEncoderCount = 0;
+
+// Interrupt service routines for encoders
+void IRAM_ATTR leftEncoderISR()
+{
+  // If channel B is high when channel A rises, count up, otherwise count down
+  if (digitalRead(ENC_G_CH_B))
+  {
+    leftEncoderCount++;
+  }
+  else
+  {
+    leftEncoderCount--;
+  }
+}
+
+void IRAM_ATTR rightEncoderISR()
+{
+  // Invert the count direction for the right motor to match the physical direction
+  if (digitalRead(ENC_D_CH_B))
+  {
+    rightEncoderCount--; // Inverted from original
+  }
+  else
+  {
+    rightEncoderCount++; // Inverted from original
+  }
+}
 
 // Motor speed constants
 
@@ -18,138 +63,119 @@ void setup()
 {
   // Initialize serial communication
   Serial.begin(115200);
-  Serial.println("Drawbot - Motor Test");
+  Serial.println("Drawbot Motor Test with Encoder Feedback");
 
   // Initialize LED pins
   pinMode(LEDU1, OUTPUT);
   pinMode(LEDU2, OUTPUT);
 
   // Initialize motor pins
-  pinMode(EN_D, OUTPUT);
-  pinMode(EN_G, OUTPUT);
-  pinMode(IN_1_D, OUTPUT);
-  pinMode(IN_2_D, OUTPUT);
   pinMode(IN_1_G, OUTPUT);
   pinMode(IN_2_G, OUTPUT);
+  pinMode(IN_1_D, OUTPUT);
+  pinMode(IN_2_D, OUTPUT);
 
-  // Initially turn off motors
-  digitalWrite(EN_D, LOW);
-  digitalWrite(EN_G, LOW);
+  // Configure PWM for motor speed control
+  ledcSetup(LEFT_MOTOR_CH, PWM_FREQ, PWM_RESOLUTION);
+  ledcSetup(RIGHT_MOTOR_CH, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(EN_G, LEFT_MOTOR_CH);
+  ledcAttachPin(EN_D, RIGHT_MOTOR_CH);
+
+  // Initialize encoder pins as inputs with pull-up resistors
+  pinMode(ENC_G_CH_A, INPUT_PULLUP);
+  pinMode(ENC_G_CH_B, INPUT_PULLUP);
+  pinMode(ENC_D_CH_A, INPUT_PULLUP);
+  pinMode(ENC_D_CH_B, INPUT_PULLUP);
+
+  // Attach interrupts to encoder channels
+  attachInterrupt(digitalPinToInterrupt(ENC_G_CH_A), leftEncoderISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(ENC_D_CH_A), rightEncoderISR, RISING);
+
+  // Initially turn off motors and LEDs
+  ledcWrite(LEFT_MOTOR_CH, 0);  // 0 speed
+  ledcWrite(RIGHT_MOTOR_CH, 0); // 0 speed
+  digitalWrite(LEDU1, LOW);
+  digitalWrite(LEDU2, LOW);
+
+  // Reset encoder counts
+  leftEncoderCount = 0;
+  rightEncoderCount = 0;
+
+  // Wait a moment before starting
+  delay(2000);
+  Serial.println("Starting test...");
 }
 
-// Function to control the right motor
-void rightMotor(int speed)
+// Function to print encoder information
+void printEncoderInfo()
 {
-  // Enable motor
-  digitalWrite(EN_D, HIGH);
+  // Check if encoder counts have changed
+  if (leftEncoderCount != lastLeftEncoderCount || rightEncoderCount != lastRightEncoderCount)
+  {
+    // Print left encoder information
+    Serial.print("Left encoder: ");
+    Serial.print(leftEncoderCount);
+    float leftRotations = (float)leftEncoderCount / 12.0 / 150.0;
+    Serial.print(" (");
+    Serial.print(leftRotations, 3);
+    Serial.print(" rotations)  |  ");
 
-  if (speed > 0)
-  {
-    // Forward
-    digitalWrite(IN_1_D, HIGH);
-    digitalWrite(IN_2_D, LOW);
-  }
-  else if (speed < 0)
-  {
-    // Backward
-    digitalWrite(IN_1_D, LOW);
-    digitalWrite(IN_2_D, HIGH);
-  }
-  else
-  {
-    // Stop
-    digitalWrite(IN_1_D, LOW);
-    digitalWrite(IN_2_D, LOW);
-  }
-}
+    // Print right encoder information
+    Serial.print("Right encoder: ");
+    Serial.print(rightEncoderCount);
+    float rightRotations = (float)rightEncoderCount / 12.0 / 150.0;
+    Serial.print(" (");
+    Serial.print(rightRotations, 3);
+    Serial.println(" rotations)");
 
-// Function to control the left motor
-void leftMotor(int speed)
-{
-  // Enable motor
-  digitalWrite(EN_G, HIGH);
-
-  if (speed > 0)
-  {
-    // Forward
-    digitalWrite(IN_1_G, HIGH);
-    digitalWrite(IN_2_G, LOW);
+    // Update last counts
+    lastLeftEncoderCount = leftEncoderCount;
+    lastRightEncoderCount = rightEncoderCount;
   }
-  else if (speed < 0)
-  {
-    // Backward
-    digitalWrite(IN_1_G, LOW);
-    digitalWrite(IN_2_G, HIGH);
-  }
-  else
-  {
-    // Stop
-    digitalWrite(IN_1_G, LOW);
-    digitalWrite(IN_2_G, LOW);
-  }
-}
-
-// Function to stop both motors
-void stopMotors()
-{
-  digitalWrite(EN_D, LOW);
-  digitalWrite(EN_G, LOW);
-  digitalWrite(IN_1_D, LOW);
-  digitalWrite(IN_2_D, LOW);
-  digitalWrite(IN_1_G, LOW);
-  digitalWrite(IN_2_G, LOW);
 }
 
 void loop()
 {
-  // Indicate start of test with LEDs
-  digitalWrite(LEDU1, HIGH);
-  digitalWrite(LEDU2, HIGH);
+  // Test both wheels simultaneously
+  digitalWrite(LEDU1, HIGH); // Turn on left LED
+  digitalWrite(LEDU2, HIGH); // Turn on right LED
+  Serial.println("\n--- Both wheels moving forward ---");
 
-  // Test sequence with simple movements
-  Serial.println("Moving forward");
-  rightMotor(1); // Forward
-  leftMotor(1);  // Forward
-  delay(2000);   // Run for 2 seconds
+  // Reset encoder counts
+  leftEncoderCount = 0;
+  rightEncoderCount = 0;
 
-  Serial.println("Stopping");
-  stopMotors();
-  delay(1000); // Pause for 1 second
+  // Set both motors to move forward
+  digitalWrite(IN_1_G, HIGH);
+  digitalWrite(IN_2_G, LOW);
+  // Reverse the direction for the right motor
+  digitalWrite(IN_1_D, LOW);
+  digitalWrite(IN_2_D, HIGH);
 
-  Serial.println("Turning right");
-  rightMotor(-1); // Backward
-  leftMotor(1);   // Forward
-  delay(1000);    // Turn for 1 second
+  // Enable both motors with reduced speed (100 out of 255)
+  ledcWrite(LEFT_MOTOR_CH, 186);  // Adjust this value to control speed (0-255)
+  ledcWrite(RIGHT_MOTOR_CH, 180); // Adjust this value to control speed (0-255)
 
-  Serial.println("Stopping");
-  stopMotors();
-  delay(1000); // Pause for 1 second
-
-  Serial.println("Turning left");
-  rightMotor(1); // Forward
-  leftMotor(-1); // Backward
-  delay(1000);   // Turn for 1 second
-
-  Serial.println("Stopping");
-  stopMotors();
-  delay(1000); // Pause for 1 second
-
-  Serial.println("Moving backward");
-  rightMotor(-1); // Backward
-  leftMotor(-1);  // Backward
-  delay(2000);    // Run for 2 seconds
-
-  Serial.println("Test complete, waiting 5 seconds...");
-  stopMotors();
-
-  // Blink LEDs during wait
-  for (int i = 0; i < 5; i++)
+  // Keep the motors running for 3 seconds while monitoring encoders
+  unsigned long startTime = millis();
+  while (millis() - startTime < 3000)
   {
-    digitalWrite(LEDU1, HIGH);
-    digitalWrite(LEDU2, LOW);
-    delay(500);
-    digitalWrite(LEDU1, LOW);
-    digitalWrite(LEDU2, HIGH);
-    delay(500);
+    printEncoderInfo();
+    delay(50);
   }
+
+  // Stop both motors and turn off LEDs
+  ledcWrite(LEFT_MOTOR_CH, 0);  // 0 speed
+  ledcWrite(RIGHT_MOTOR_CH, 0); // 0 speed
+  digitalWrite(LEDU1, LOW);
+  digitalWrite(LEDU2, LOW);
+  Serial.println("Both wheels stopped");
+
+  // Display final encoder readings
+  Serial.println("\nFinal encoder readings:");
+  printEncoderInfo();
+
+  // Wait before repeating the test
+  Serial.println("Waiting for 5 seconds before repeating...");
+  delay(5000);
 }
